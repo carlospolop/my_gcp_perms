@@ -9,9 +9,11 @@ import googleapiclient.discovery
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
+import json
+import os
 
 
-def download_gcp_permissions():
+def download_gcp_permissions(filename="permissions.json"):
     """Get list with all permissions og GCP (copied and modified from https://github.com/iann0036/iam-dataset/blob/main/gcp_get_permissions.py)"""
 
     base_ref_page = requests.get("https://cloud.google.com/iam/docs/permissions-reference").text
@@ -30,7 +32,12 @@ def download_gcp_permissions():
         results.append(permission)
     
     """
-    return results
+    if os.path.exists(filename) and os.path.getsize(filename) > 0:
+        raise ValueError(f"Error: {filename} is not empty")
+    else:
+        with open(filename,"w") as f:
+            json.dump(results,f)
+        return results
 
 def check_permissions(perms, service, project, folder, org, verbose):
     """Test if the user has the indicated permissions"""
@@ -99,6 +106,9 @@ def main():
     parser.add_argument('-T','--threads', help='Number of threads to use, be careful with rate limits. Default is 3.', default=3, type=int)
     parser.add_argument('-s','--services', help='Comma separated list of GCP service by its api names to check only (e.g. filtering top 10 services: -s iam.,compute.,storage.,container.,bigquery.,cloudfunctions.,pubsub.,sqladmin.,cloudkms.,secretmanager.). Default is all services.', default='', type=str)
     parser.add_argument('-S','--size', help='Size of the chunks to divide all the services into. Default is 50.)', default=50)
+    parser.add_argument('-P','--permission', default="permissions.json",help='Specify the location of the permissions file. By default, it uses "permissions.json". You can provide a custom path or filename.')
+    parser.add_argument('-O','--output',help='Optionally specify an output file to save the permissions. If not provided, permissions will be printed to the console.')
+
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-c','--credentials', help='Path to credentials.json')
     group.add_argument('-t','--token', help='Raw access token')
@@ -123,16 +133,24 @@ def main():
         )
 
     # Load permissions from permissions.json
-    list_perms = list(set(download_gcp_permissions()))
+    if args.get('permission'):
+        try:
+            with open(args.get('permission'),"r") as f:
+                list_perms = list(set(json.load(f)))
+        except FileNotFoundError:
+            print(f"{args.get('permission')} does not exist, downloading permissions...")
+            list_perms = list(set(download_gcp_permissions(args.get('permission'))))
+    else:
+        list_perms = list(set(download_gcp_permissions()))
+
     if list_perms is None or len(list_perms) == 0:
-        print("Couldn't download the permissions")
+        print("Couldn't download/read the permissions")
         return
     list_perms.sort()
-
-    print(f"Downloaded {len(list_perms)} GCP permissions")
+    print(f"Downloaded/read {len(list_perms)} GCP permissions")
     
     if len(services_grep)>0:
-        # Filter only inte interesting services
+        # Filter only the interesting services
         list_perms = [perm for perm in list_perms for grep_perm in services_grep if grep_perm.lower() in perm.lower()]
         print(f"Filtered to {len(list_perms)} GCP permissions")
 
@@ -172,9 +190,12 @@ def main():
             for future in concurrent.futures.as_completed(futures):
                 handle_future(future, progress)
 
-    print("[+] Your Permissions: \n- " + '\n- '.join(have_perms))
-    print("")
-
+    output_text = ("[+] Your Permissions: \n- " + '\n- '.join(have_perms) +"\n")
+    if args.get('output'):
+        with open(args.get('output'),'w') as f: f.write(output_text)
+        print(f"Saved your permission to {args.get('output')}")
+    
+    print(output_text)
 
 if __name__ == "__main__":
     main()

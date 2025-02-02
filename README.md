@@ -29,6 +29,8 @@ options:
                         .,cloudfunctions.,pubsub.,sqladmin.,cloudkms.,secretmanager.). Default
                         is all services.
   -S SIZE, --size SIZE  Size of the chunks to divide all the services into. Default is 50.)
+  -P PERMISSION --permission Specify the location of the permissions file. By default, it uses "permissions.json". You can provide a custom path or filename.
+  -O OUTPUT --output Optionally specify an output file to save the permissions. If not provided, permissions will be printed to the console. 
   -c CREDENTIALS, --credentials CREDENTIALS
                         Path to credentials.json
   -t TOKEN, --token TOKEN
@@ -52,4 +54,10 @@ python3 bf_my_gcp_perms.py -v -p project-name-1232 -t $(gcloud auth print-access
 
 # Checking permissions only in the top10 services
 python3 bf_my_gcp_perms.py -v -p project-name-1232 -t $(gcloud auth print-access-token) -s "iam.,compute.,storage.,container.,bigquery.,cloudfunctions.,pubsub.,sqladmin.,cloudkms.,secretmanager."
+
+# Using of permissions.json
+python3 bf_my_gcp_perms.py -t <token> -p project-name-1232 -P permissions.json
+
+# Saving output
+python3 bf_my_gcp_perms.py -t <token> -p project-name-1232 -O output.txt
 ```
